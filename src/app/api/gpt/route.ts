@@ -30,6 +30,10 @@ function getQueryType(
 ): "inventory_query" | "statistics" | "normal_query" {
   const queryLower = query.toLowerCase();
 
+  // 🔍 LOG: In ra query gốc và query đã lowercase
+  console.log("🔍 Original query:", query);
+  console.log("🔍 Lowercase query:", queryLower);
+
   const inventoryKeywords = [
     "sản phẩm nào",
     "hiển thị sản phẩm",
@@ -43,6 +47,10 @@ function getQueryType(
     "delay nhất",
     "tên sản phẩm",
     "id sản phẩm",
+    "hiển thị tất cả",
+    "show all",
+    "tất cả sản phẩm",
+    "list sản phẩm",
   ];
 
   const statisticsKeywords = [
@@ -71,11 +79,24 @@ function getQueryType(
     "graph",
   ];
 
-  if (statisticsKeywords.some((keyword) => queryLower.includes(keyword))) {
+  // 🔍 LOG: Kiểm tra từng loại keyword
+  const matchedStatistics = statisticsKeywords.filter((keyword) =>
+    queryLower.includes(keyword)
+  );
+  const matchedInventory = inventoryKeywords.filter((keyword) =>
+    queryLower.includes(keyword)
+  );
+
+  console.log("📊 Matched Statistics Keywords:", matchedStatistics);
+  console.log("📦 Matched Inventory Keywords:", matchedInventory);
+
+  if (matchedStatistics.length > 0) {
+    console.log("✅ Classified as: STATISTICS");
     return "statistics";
   }
 
-  if (inventoryKeywords.some((keyword) => queryLower.includes(keyword))) {
+  if (matchedInventory.length > 0) {
+    console.log("✅ Classified as: INVENTORY_QUERY");
     return "inventory_query";
   }
 
@@ -93,12 +114,17 @@ function getQueryType(
     "hết hàng",
   ];
 
-  if (
-    generalInventoryKeywords.some((keyword) => queryLower.includes(keyword))
-  ) {
+  const matchedGeneral = generalInventoryKeywords.filter((keyword) =>
+    queryLower.includes(keyword)
+  );
+  console.log("🏪 Matched General Inventory Keywords:", matchedGeneral);
+
+  if (matchedGeneral.length > 0) {
+    console.log("✅ Classified as: INVENTORY_QUERY (General)");
     return "inventory_query";
   }
 
+  console.log("✅ Classified as: NORMAL_QUERY (Default)");
   return "normal_query";
 }
 
@@ -116,16 +142,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log("\n" + "=".repeat(50));
+    console.log("🚀 NEW REQUEST RECEIVED");
+    console.log("=".repeat(50));
+
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const queryType = getQueryType(query);
 
+    console.log("🎯 FINAL QUERY TYPE:", queryType);
+    console.log("=".repeat(50) + "\n");
+
     if (queryType === "inventory_query" || queryType === "statistics") {
       try {
+        console.log("💾 Attempting database connection...");
         connection = await mysql.createConnection(dbConfig);
+        console.log("✅ Database connected successfully");
 
         let sqlPrompt = "";
 
         if (queryType === "statistics") {
+          console.log("📊 Processing STATISTICS query");
           sqlPrompt = `
           Bạn là một chuyên gia SQL cho phân tích thống kê. Dựa trên schema database sau và câu hỏi thống kê của người dùng, hãy tạo ra câu truy vấn SQL phù hợp.
 
@@ -149,6 +185,7 @@ export async function POST(req: NextRequest) {
           - "Số sản phẩm theo từng mức delay" → "SELECT delay_days, COUNT(*) as product_count FROM inventory_item GROUP BY delay_days"
           `;
         } else {
+          console.log("📦 Processing INVENTORY_QUERY");
           sqlPrompt = `
           Bạn là một chuyên gia SQL. Dựa trên schema database sau và câu hỏi của người dùng, hãy tạo ra câu truy vấn SQL phù hợp.
 
@@ -171,6 +208,7 @@ export async function POST(req: NextRequest) {
           `;
         }
 
+        console.log("🤖 Generating SQL with Gemini...");
         const sqlResult = await model.generateContent(sqlPrompt);
         const sqlResponse = await sqlResult.response;
         const sqlQuery = sqlResponse
@@ -178,10 +216,15 @@ export async function POST(req: NextRequest) {
           .trim()
           .replace(/```sql|```/g, "");
 
+        console.log("🔍 Generated SQL:", sqlQuery);
+
         if (
           sqlQuery === "NO_SQL_NEEDED" ||
           !sqlQuery.toUpperCase().startsWith("SELECT")
         ) {
+          console.log(
+            "⚠️ SQL not needed or invalid, falling back to normal query"
+          );
           const normalResult = await model.generateContent(query);
           const normalResponse = await normalResult.response;
           return NextResponse.json({
@@ -190,9 +233,12 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        console.log(`🔍 Generated ${queryType} SQL:`, sqlQuery);
-
+        console.log("🔍 Executing SQL query...");
         const [rows] = await connection.execute(sqlQuery);
+        console.log(
+          "✅ SQL executed successfully, rows returned:",
+          Array.isArray(rows) ? rows.length : "Unknown"
+        );
 
         let analysisPrompt = "";
 
@@ -227,8 +273,12 @@ export async function POST(req: NextRequest) {
           `;
         }
 
+        console.log("🤖 Generating analysis with Gemini...");
         const analysisResult = await model.generateContent(analysisPrompt);
         const analysisResponse = await analysisResult.response;
+
+        console.log("✅ Analysis generated successfully");
+        console.log("📤 Returning response with type:", queryType);
 
         return NextResponse.json({
           result: analysisResponse.text(),
@@ -254,6 +304,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // Handle normal queries
+      console.log("💬 Processing NORMAL_QUERY");
       const chatPrompt = `
       Bạn là một trợ lý AI thân thiện và hữu ích. Hãy trả lời câu hỏi sau một cách tự nhiên và thân thiện bằng tiếng Việt:
       "${query}"
@@ -266,6 +317,9 @@ export async function POST(req: NextRequest) {
 
       const chatResult = await model.generateContent(chatPrompt);
       const chatResponse = await chatResult.response;
+
+      console.log("✅ Normal chat response generated");
+      console.log("📤 Returning response with type: normal_query");
 
       return NextResponse.json({
         result: chatResponse.text(),

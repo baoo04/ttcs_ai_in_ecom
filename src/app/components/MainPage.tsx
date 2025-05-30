@@ -61,10 +61,8 @@ export default function MainPage() {
   const [isTyping, setIsTyping] = useState(false);
 
   const handleUserQuery = async (query: string) => {
-    // Add user message
     setMessages((prev) => [...prev, { role: "user", text: query }]);
 
-    // Show typing indicator
     setIsTyping(true);
 
     try {
@@ -76,7 +74,6 @@ export default function MainPage() {
 
       const response: ApiResponse = await res.json();
 
-      // Hide typing indicator and add bot response
       setIsTyping(false);
       setMessages((prev) => [
         ...prev,

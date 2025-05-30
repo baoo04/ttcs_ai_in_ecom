@@ -21,7 +21,7 @@ export default function ChatbotInput({ onQuery }: ChatbotInputProps) {
     setIsLoading(true);
 
     try {
-      await onQuery(query);
+      onQuery(query);
     } finally {
       setIsLoading(false);
     }
