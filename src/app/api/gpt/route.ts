@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import mysql from "mysql2/promise";
@@ -5,10 +6,10 @@ import mysql from "mysql2/promise";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const dbConfig = {
-  host: "localhost",
-  user: "root",
-  password: "baodang123",
-  database: "inventory_db",
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   port: 3306,
 };
 
@@ -22,7 +23,7 @@ Columns:
 - delay_days (int): Số ngày delay
 - remaining_quantity (int): Số lượng còn lại
 - replenish_date (date): Ngày bổ sung hàng
-- prediction (varchar): Dự báo tình hình
+- prediction (varchar): Dự báo nhu cầu khách hàng (not SQL)
 `;
 
 function getQueryType(
@@ -79,7 +80,6 @@ function getQueryType(
     "graph",
   ];
 
-  // 🔍 LOG: Kiểm tra từng loại keyword
   const matchedStatistics = statisticsKeywords.filter((keyword) =>
     queryLower.includes(keyword)
   );
@@ -183,6 +183,13 @@ export async function POST(req: NextRequest) {
           - "Trung bình số lượng còn lại" → "SELECT AVG(remaining_quantity) as avg_remaining FROM inventory_item"
           - "Tổng số lượng hàng tồn kho" → "SELECT SUM(remaining_quantity) as total_stock FROM inventory_item"
           - "Số sản phẩm theo từng mức delay" → "SELECT delay_days, COUNT(*) as product_count FROM inventory_item GROUP BY delay_days"
+          - Hướng dẫn: Dự báo nhu cầu sản phẩm [Tên sản phẩm] tại chi nhánh trong [Thời gian].
+          Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]
+           Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024"
+           Đầu ra: Dự báo 300 đơn vị, độ tin cậy 90%.
+           Yêu cầu: Dự báo nhu cầu [Tên sản phẩm] tại [Chi nhánh] trong [Thời gian lịch sử]. Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]. Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024" → "SELECT product_name, SUM(remaining_quantity) as total_demand FROM inventory_item WHERE product_name = 'Dell XPS' AND replenish_date BETWEEN '2024-11-01' AND '2024-11-30' GROUP BY product_name"
+          - "Dự báo nhu cầu sản phẩm [Tên sản phẩm] tại chi nhánh trong [Thời gian]. Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]. Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024" → "SELECT product_name, SUM(remaining_quantity) as total_demand FROM inventory_item WHERE product_name = 'Dell XPS' AND replenish_date BETWEEN '2024-11-01' AND '2024-11-30' GROUP BY product_name"
+          Định dạng: Trả lời dưới dạng bảng với các cột "Tên sản phẩm", "Số lượng dự báo", "Độ tin cậy".
           `;
         } else {
           console.log("📦 Processing INVENTORY_QUERY");
@@ -200,9 +207,11 @@ export async function POST(req: NextRequest) {
           4. Đảm bảo syntax MySQL chính xác
           5. Không sử dụng DROP, DELETE, UPDATE - chỉ SELECT
           6. Nếu câu hỏi không thể tạo SQL, trả về: "NO_SQL_NEEDED"
+          7.Nếu câu hỏi có liên quan đến dự báo nhu cầu sản phẩm thì hãy dự đoán nhu cầu của sản phẩm và tạo 1 cột ảo có tên prediction để hiển thị dữ liệu.
+          dữ liệu của dự báo nhu cầu sẽ được dự đoán theo các tiêu chí người dùng mua nhiều hay ít, thời gian bán chạy, xu hướng khách hàng. Kết quả trả về dưới dạng ngôn ngữ vietnamese
 
           Ví dụ:
-          - "Hiển thị tất cả sản phẩm" → "SELECT * FROM inventory_item"
+          - "Hiển thị tất cả sản phẩm" → "SELECT * FROM inventory_item" chèn thêm vào 1 cột ảo prediction với giá trị là dự báo nhu cầu sản phẩm mà bạn dự đoán ở trên theo ví dự như là: Khách hàng mua nhiều nên nhập số lượng ? trong thời gian ?, nên nhập ít,...
           - "Sản phẩm nào sắp hết hàng?" → "SELECT * FROM inventory_item WHERE remaining_quantity < 30"
           - "Sản phẩm nào delay nhất?" → "SELECT * FROM inventory_item ORDER BY delay_days DESC LIMIT 1"
           `;
@@ -214,17 +223,33 @@ export async function POST(req: NextRequest) {
         const sqlQuery = sqlResponse
           .text()
           .trim()
-          .replace(/```sql|```/g, "");
+          .replace(/```sql|```/g, "")
+          .replace(/^\s+|\s+$/g, "");
 
-        console.log("🔍 Generated SQL:", sqlQuery);
+        const trimmedQuery = sqlQuery.trim();
+        const upperQuery = trimmedQuery.toUpperCase();
 
-        if (
-          sqlQuery === "NO_SQL_NEEDED" ||
-          !sqlQuery.toUpperCase().startsWith("SELECT")
-        ) {
-          console.log(
-            "⚠️ SQL not needed or invalid, falling back to normal query"
-          );
+        console.log("🔍 Debug SQL validation:");
+        console.log("  - Original length:", sqlQuery.length);
+        console.log("  - Trimmed length:", trimmedQuery.length);
+        console.log("  - Starts with SELECT:", upperQuery.startsWith("SELECT"));
+        console.log("  - First 50 chars:", trimmedQuery.substring(0, 50));
+
+        const isNoSqlNeeded = trimmedQuery === "NO_SQL_NEEDED";
+        const isEmpty = trimmedQuery === "";
+        const isNotSelect = !upperQuery.startsWith("SELECT");
+        const containsDangerous =
+          /\b(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)\b/i.test(trimmedQuery);
+
+        if (isNoSqlNeeded || isEmpty || isNotSelect || containsDangerous) {
+          console.log("⚠️ SQL validation failed:");
+          console.log("  - No SQL needed:", isNoSqlNeeded);
+          console.log("  - Empty query:", isEmpty);
+          console.log("  - Not SELECT:", isNotSelect);
+          console.log("  - Contains dangerous commands:", containsDangerous);
+          console.log("  - Trimmed query:", `'${trimmedQuery}'`);
+          console.log("  - Upper query:", `'${upperQuery}'`);
+
           const normalResult = await model.generateContent(query);
           const normalResponse = await normalResult.response;
           return NextResponse.json({
@@ -233,8 +258,10 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        console.log("🔍 Executing SQL query...");
-        const [rows] = await connection.execute(sqlQuery);
+        console.log("✅ SQL validation passed, executing query...");
+        console.log("🔍 Executing SQL query:", trimmedQuery);
+
+        const [rows] = await connection.execute(trimmedQuery);
         console.log(
           "✅ SQL executed successfully, rows returned:",
           Array.isArray(rows) ? rows.length : "Unknown"
@@ -284,6 +311,7 @@ export async function POST(req: NextRequest) {
           result: analysisResponse.text(),
           data: rows,
           type: queryType,
+          sql_executed: trimmedQuery,
         });
       } catch (dbError: any) {
         console.error("❌ Database Error:", dbError);
@@ -303,7 +331,6 @@ export async function POST(req: NextRequest) {
         });
       }
     } else {
-      // Handle normal queries
       console.log("💬 Processing NORMAL_QUERY");
       const chatPrompt = `
       Bạn là một trợ lý AI thân thiện và hữu ích. Hãy trả lời câu hỏi sau một cách tự nhiên và thân thiện bằng tiếng Việt:
@@ -348,8 +375,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    if (connection) {
-      await connection.end();
-    }
   }
 }
