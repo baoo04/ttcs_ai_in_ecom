@@ -23,7 +23,6 @@ Columns:
 - delay_days (int): Số ngày delay
 - remaining_quantity (int): Số lượng còn lại
 - replenish_date (date): Ngày bổ sung hàng
-- prediction (varchar): Dự báo tình hình
 `;
 
 function getQueryType(
@@ -183,6 +182,13 @@ export async function POST(req: NextRequest) {
           - "Trung bình số lượng còn lại" → "SELECT AVG(remaining_quantity) as avg_remaining FROM inventory_item"
           - "Tổng số lượng hàng tồn kho" → "SELECT SUM(remaining_quantity) as total_stock FROM inventory_item"
           - "Số sản phẩm theo từng mức delay" → "SELECT delay_days, COUNT(*) as product_count FROM inventory_item GROUP BY delay_days"
+          - Hướng dẫn: Dự báo nhu cầu sản phẩm [Tên sản phẩm] tại chi nhánh trong [Thời gian].
+          Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]
+           Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024"
+           Đầu ra: Dự báo 300 đơn vị, độ tin cậy 90%.
+           Yêu cầu: Dự báo nhu cầu [Tên sản phẩm] tại [Chi nhánh] trong [Thời gian lịch sử]. Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]. Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024" → "SELECT product_name, SUM(remaining_quantity) as total_demand FROM inventory_item WHERE product_name = 'Dell XPS' AND replenish_date BETWEEN '2024-11-01' AND '2024-11-30' GROUP BY product_name"
+          - "Dự báo nhu cầu sản phẩm [Tên sản phẩm] tại chi nhánh trong [Thời gian]. Ngữ cảnh: Dữ liệu lịch sử giao dịch từ tiktakPOS bao gồm số lượng khách hàng, tồn kho, và giá sản phẩm trong [Thời gian lịch sử]. Ví dụ: Đầu vào: "Dự báo nhu cầu laptop Dell XPS tại FPT Shop TP>HCM trong tháng 11/2024" → "SELECT product_name, SUM(remaining_quantity) as total_demand FROM inventory_item WHERE product_name = 'Dell XPS' AND replenish_date BETWEEN '2024-11-01' AND '2024-11-30' GROUP BY product_name"
+          Định dạng: Trả lời dưới dạng bảng với các cột "Tên sản phẩm", "Số lượng dự báo", "Độ tin cậy".
           `;
         } else {
           console.log("📦 Processing INVENTORY_QUERY");
@@ -215,9 +221,7 @@ export async function POST(req: NextRequest) {
           .text()
           .trim()
           .replace(/```sql|```/g, "")
-          .replace(/^\s+|\s+$/g, ""); 
-        console.log("🔍 Generated SQL (raw):", JSON.stringify(sqlQuery));
-        console.log("🔍 Generated SQL (display):", sqlQuery);
+          .replace(/^\s+|\s+$/g, "");
 
         const trimmedQuery = sqlQuery.trim();
         const upperQuery = trimmedQuery.toUpperCase();
@@ -228,7 +232,6 @@ export async function POST(req: NextRequest) {
         console.log("  - Starts with SELECT:", upperQuery.startsWith("SELECT"));
         console.log("  - First 50 chars:", trimmedQuery.substring(0, 50));
 
-        // Kiểm tra các điều kiện invalid
         const isNoSqlNeeded = trimmedQuery === "NO_SQL_NEEDED";
         const isEmpty = trimmedQuery === "";
         const isNotSelect = !upperQuery.startsWith("SELECT");
@@ -325,7 +328,6 @@ export async function POST(req: NextRequest) {
         });
       }
     } else {
-      // Handle normal queries
       console.log("💬 Processing NORMAL_QUERY");
       const chatPrompt = `
       Bạn là một trợ lý AI thân thiện và hữu ích. Hãy trả lời câu hỏi sau một cách tự nhiên và thân thiện bằng tiếng Việt:

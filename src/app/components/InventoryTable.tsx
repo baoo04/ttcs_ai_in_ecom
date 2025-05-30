@@ -4,12 +4,12 @@ import React from "react";
 
 type InventoryItem = {
   id: number;
-  product_name: string; 
-  initial_stock: number; 
-  delay_days: number; 
-  remaining_quantity: number; 
-  replenish_date: string; 
-  prediction: string; 
+  product_name: string;
+  initial_stock: number;
+  delay_days: number;
+  remaining_quantity: number;
+  replenish_date: string;
+  prediction: string;
 };
 
 export default function InventoryTable({ data }: { data: InventoryItem[] }) {
@@ -35,7 +35,7 @@ export default function InventoryTable({ data }: { data: InventoryItem[] }) {
                 Thời Gian Cần Nhập
               </th>
               <th className="px-4 py-3 text-center text-sm font-medium text-gray-700 border-b">
-                Dự Đoán Hướng Khác Hàng
+                Dự Đoán Hướng Khách Hàng
               </th>
             </tr>
           </thead>
