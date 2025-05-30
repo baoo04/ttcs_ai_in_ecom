@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import mysql from "mysql2/promise";
@@ -79,7 +80,6 @@ function getQueryType(
     "graph",
   ];
 
-  // 🔍 LOG: Kiểm tra từng loại keyword
   const matchedStatistics = statisticsKeywords.filter((keyword) =>
     queryLower.includes(keyword)
   );
@@ -214,17 +214,36 @@ export async function POST(req: NextRequest) {
         const sqlQuery = sqlResponse
           .text()
           .trim()
-          .replace(/```sql|```/g, "");
+          .replace(/```sql|```/g, "")
+          .replace(/^\s+|\s+$/g, ""); 
+        console.log("🔍 Generated SQL (raw):", JSON.stringify(sqlQuery));
+        console.log("🔍 Generated SQL (display):", sqlQuery);
 
-        console.log("🔍 Generated SQL:", sqlQuery);
+        const trimmedQuery = sqlQuery.trim();
+        const upperQuery = trimmedQuery.toUpperCase();
 
-        if (
-          sqlQuery === "NO_SQL_NEEDED" ||
-          !sqlQuery.toUpperCase().startsWith("SELECT")
-        ) {
-          console.log(
-            "⚠️ SQL not needed or invalid, falling back to normal query"
-          );
+        console.log("🔍 Debug SQL validation:");
+        console.log("  - Original length:", sqlQuery.length);
+        console.log("  - Trimmed length:", trimmedQuery.length);
+        console.log("  - Starts with SELECT:", upperQuery.startsWith("SELECT"));
+        console.log("  - First 50 chars:", trimmedQuery.substring(0, 50));
+
+        // Kiểm tra các điều kiện invalid
+        const isNoSqlNeeded = trimmedQuery === "NO_SQL_NEEDED";
+        const isEmpty = trimmedQuery === "";
+        const isNotSelect = !upperQuery.startsWith("SELECT");
+        const containsDangerous =
+          /\b(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)\b/i.test(trimmedQuery);
+
+        if (isNoSqlNeeded || isEmpty || isNotSelect || containsDangerous) {
+          console.log("⚠️ SQL validation failed:");
+          console.log("  - No SQL needed:", isNoSqlNeeded);
+          console.log("  - Empty query:", isEmpty);
+          console.log("  - Not SELECT:", isNotSelect);
+          console.log("  - Contains dangerous commands:", containsDangerous);
+          console.log("  - Trimmed query:", `'${trimmedQuery}'`);
+          console.log("  - Upper query:", `'${upperQuery}'`);
+
           const normalResult = await model.generateContent(query);
           const normalResponse = await normalResult.response;
           return NextResponse.json({
@@ -233,8 +252,10 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        console.log("🔍 Executing SQL query...");
-        const [rows] = await connection.execute(sqlQuery);
+        console.log("✅ SQL validation passed, executing query...");
+        console.log("🔍 Executing SQL query:", trimmedQuery);
+
+        const [rows] = await connection.execute(trimmedQuery);
         console.log(
           "✅ SQL executed successfully, rows returned:",
           Array.isArray(rows) ? rows.length : "Unknown"
@@ -284,6 +305,7 @@ export async function POST(req: NextRequest) {
           result: analysisResponse.text(),
           data: rows,
           type: queryType,
+          sql_executed: trimmedQuery,
         });
       } catch (dbError: any) {
         console.error("❌ Database Error:", dbError);
@@ -348,8 +370,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    if (connection) {
-      await connection.end();
-    }
   }
 }

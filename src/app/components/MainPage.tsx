@@ -23,32 +23,6 @@ type ApiResponse = {
   sql?: string;
 };
 
-// Typing Indicator Component
-const TypingIndicator = () => {
-  return (
-    <div className="flex items-center space-x-1 p-3 bg-gray-100 rounded-lg w-fit max-w-[80%] self-start mr-auto">
-      <div className="flex items-center space-x-2">
-        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
-          <FaRobot size={16} />
-        </div>
-        <div className="flex space-x-1">
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "0ms" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "150ms" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "300ms" }}
-          ></div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export default function MainPage() {
   const [messages, setMessages] = useState<
@@ -271,7 +245,7 @@ export default function MainPage() {
               </div>
             ))}
 
-            {/* Typing Indicator */}
+          
             {isTyping && (
               <div className="flex items-start space-x-3 justify-start">
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white flex-shrink-0">
