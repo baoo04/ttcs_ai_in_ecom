@@ -162,12 +162,12 @@ export default function MainPage() {
       case "bar":
         return inventory.map((item) => ({
           name:
-            item.product_name.length > 15
-              ? item.product_name.substring(0, 15) + "..."
-              : item.product_name,
-          value: item.remaining_quantity,
-          delay: item.delay_days,
-          initial: item.initial_stock,
+            item?.product_name?.length > 15
+              ? item?.product_name.substring(0, 15) + "..."
+              : item?.product_name,
+          value: item?.remaining_quantity,
+          delay: item?.delay_days,
+          initial: item?.initial_stock,
         }));
 
       case "pie":
@@ -295,80 +295,80 @@ export default function MainPage() {
                 </div>
               </div>
             )}
-          </div>
 
-          {showTable && inventory.length > 0 && (
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  📦 Dữ liệu tồn kho ({inventory.length} sản phẩm)
-                </h2>
+            {showTable && inventory.length > 0 && (
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    📦 Dữ liệu tồn kho ({inventory.length} sản phẩm)
+                  </h2>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowChart(!showChart)}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${
-                      showChart
-                        ? "bg-blue-500 text-white hover:bg-blue-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    }`}
-                  >
-                    {showChart ? "Ẩn biểu đồ" : "Hiện biểu đồ"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowChart(!showChart)}
+                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                        showChart
+                          ? "bg-blue-500 text-white hover:bg-blue-600"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      {showChart ? "Ẩn biểu đồ" : "Hiện biểu đồ"}
+                    </button>
 
-                  {showChart && (
-                    <div className="flex gap-1">
-                      {(["bar", "line", "pie"] as const).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setChartType(type)}
-                          className={`px-2 py-1 rounded text-xs transition-colors ${
-                            chartType === type
-                              ? "bg-green-500 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
-                          title={
-                            type === "bar"
-                              ? "Biểu đồ cột"
+                    {showChart && (
+                      <div className="flex gap-1">
+                        {(["bar", "line", "pie"] as const).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => setChartType(type)}
+                            className={`px-2 py-1 rounded text-xs transition-colors ${
+                              chartType === type
+                                ? "bg-green-500 text-white"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                            title={
+                              type === "bar"
+                                ? "Biểu đồ cột"
+                                : type === "line"
+                                ? "Biểu đồ đường"
+                                : "Biểu đồ tròn"
+                            }
+                          >
+                            {type === "bar"
+                              ? "📊"
                               : type === "line"
-                              ? "Biểu đồ đường"
-                              : "Biểu đồ tròn"
-                          }
-                        >
-                          {type === "bar"
-                            ? "📊"
-                            : type === "line"
-                            ? "📈"
-                            : "🥧"}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                              ? "📈"
+                              : "🥧"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                <InventoryTable data={inventory} />
               </div>
+            )}
 
-              <InventoryTable data={inventory} />
-            </div>
-          )}
-
-          {showChart && inventory.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                📈 Biểu đồ thống kê ({chartType.toUpperCase()})
-              </h3>
-              <InventoryChart
-                data={getChartData()}
-                type={chartType}
-                title={`Thống kê hàng tồn kho - ${
-                  chartType === "bar"
-                    ? "Cột"
-                    : chartType === "line"
-                    ? "Đường"
-                    : "Tròn"
-                }`}
-              />
-            </div>
-          )}
+            {showChart && inventory.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  📈 Biểu đồ thống kê ({chartType.toUpperCase()})
+                </h3>
+                <InventoryChart
+                  data={getChartData()}
+                  type={chartType}
+                  title={`Thống kê hàng tồn kho - ${
+                    chartType === "bar"
+                      ? "Cột"
+                      : chartType === "line"
+                      ? "Đường"
+                      : "Tròn"
+                  }`}
+                />
+              </div>
+            )}
+          </div>
 
           <ChatbotInput onQuery={handleUserQuery} />
 
