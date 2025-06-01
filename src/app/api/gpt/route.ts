@@ -6,10 +6,10 @@ import mysql from "mysql2/promise";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const dbConfig = {
-  host: "localhost",
-  user: "root",
-  password: "baodang123",
-  database: "inventory_db",
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   port: 3306,
 };
 
@@ -23,6 +23,7 @@ Columns:
 - delay_days (int): Số ngày delay
 - remaining_quantity (int): Số lượng còn lại
 - replenish_date (date): Ngày bổ sung hàng
+- prediction (varchar): Dự báo nhu cầu khách hàng (not SQL)
 `;
 
 function getQueryType(
@@ -206,9 +207,11 @@ export async function POST(req: NextRequest) {
           4. Đảm bảo syntax MySQL chính xác
           5. Không sử dụng DROP, DELETE, UPDATE - chỉ SELECT
           6. Nếu câu hỏi không thể tạo SQL, trả về: "NO_SQL_NEEDED"
+          7.Nếu câu hỏi có liên quan đến dự báo nhu cầu sản phẩm thì hãy dự đoán nhu cầu của sản phẩm và tạo 1 cột ảo có tên prediction để hiển thị dữ liệu.
+          dữ liệu của dự báo nhu cầu sẽ được dự đoán theo các tiêu chí người dùng mua nhiều hay ít, thời gian bán chạy, xu hướng khách hàng. Kết quả trả về dưới dạng ngôn ngữ vietnamese
 
           Ví dụ:
-          - "Hiển thị tất cả sản phẩm" → "SELECT * FROM inventory_item"
+          - "Hiển thị tất cả sản phẩm" → "SELECT * FROM inventory_item" chèn thêm vào 1 cột ảo prediction với giá trị là dự báo nhu cầu sản phẩm mà bạn dự đoán ở trên theo ví dự như là: Khách hàng mua nhiều nên nhập số lượng ? trong thời gian ?, nên nhập ít,...
           - "Sản phẩm nào sắp hết hàng?" → "SELECT * FROM inventory_item WHERE remaining_quantity < 30"
           - "Sản phẩm nào delay nhất?" → "SELECT * FROM inventory_item ORDER BY delay_days DESC LIMIT 1"
           `;
